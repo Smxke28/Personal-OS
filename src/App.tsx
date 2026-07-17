@@ -21,7 +21,7 @@ import {
   Palette
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Transaction, CalendarBlock, CategoryData, Exercise, WorkoutSession, WorkoutSet } from './types';
+import { Transaction, CalendarBlock, CategoryData, Exercise, WorkoutSession, WorkoutSet, RecurringItem } from './types';
 
 // Default initial data
 const defaultExercises: Exercise[] = [
@@ -55,6 +55,7 @@ export default function App() {
 
   // States
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>([]);
   const [calendarBlocks, setCalendarBlocks] = useState<CalendarBlock[]>([]);
   const [customCategories, setCustomCategories] = useState<any[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -68,6 +69,12 @@ export default function App() {
     if (savedTheme) {
       setThemeColor(savedTheme);
       document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+    const savedRecurring = localStorage.getItem('pos-recurringItems');
+    if (savedRecurring) {
+      try {
+        setRecurringItems(JSON.parse(savedRecurring));
+      } catch (e) {}
     }
     const savedTx = localStorage.getItem('pos-transactions');
     if (savedTx) {
@@ -116,12 +123,13 @@ export default function App() {
   useEffect(() => {
     if (!isLoaded) return;
     localStorage.setItem('pos-transactions', JSON.stringify(transactions));
+    localStorage.setItem('pos-recurringItems', JSON.stringify(recurringItems));
     localStorage.setItem('pos-calendarBlocks', JSON.stringify(calendarBlocks));
     localStorage.setItem('pos-categories', JSON.stringify(customCategories));
     localStorage.setItem('pos-exercises', JSON.stringify(exercises));
     localStorage.setItem('pos-workouts', JSON.stringify(workoutSessions));
     localStorage.setItem('pos-theme', themeColor);
-  }, [transactions, calendarBlocks, customCategories, exercises, workoutSessions, themeColor, isLoaded]);
+  }, [transactions, calendarBlocks, customCategories, exercises, workoutSessions, themeColor, recurringItems, isLoaded]);
 
   const [periodFilter, setPeriodFilter] = useState<'current' | 'previous' | 'all'>('current');
 
@@ -144,13 +152,18 @@ export default function App() {
   });
 
   const computedCategories = allCategories.map(cat => {
+    const recurringAmount = recurringItems
+      .filter(r => r.type === 'expense' && r.category.toLowerCase() === cat.name.toLowerCase())
+      .reduce((sum, r) => sum + r.amount, 0);
     const amount = filteredTransactions
       .filter(t => t.category.toLowerCase() === cat.name.toLowerCase())
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + t.amount, 0) + recurringAmount;
     return { ...cat, amount };
   });
 
+  const totalIncome = recurringItems.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
   const totalExpenses = computedCategories.reduce((sum, c) => sum + c.amount, 0);
+  const balance = totalIncome - totalExpenses;
 
   const focusHours = useMemo(() => {
     const mins = calendarBlocks.filter(b => b.completed).reduce((acc, b) => acc + b.durationMin, 0);
@@ -338,7 +351,7 @@ export default function App() {
             >
               {currentTab === 'home' && (
                 <HomeTab 
-                  totalExpenses={totalExpenses} 
+                  totalExpenses={totalExpenses} totalIncome={totalIncome} balance={balance} 
                   focusHours={focusHours} 
                   streak={streak} 
                   transactions={filteredTransactions} 
@@ -355,6 +368,8 @@ export default function App() {
                   onAddCategory={handleAddCategory}
                   periodFilter={periodFilter}
                   setPeriodFilter={setPeriodFilter}
+                  recurringItems={recurringItems}
+                  setRecurringItems={setRecurringItems}
                 />
               )}
               {currentTab === 'calendar' && (
@@ -404,7 +419,7 @@ export default function App() {
 
 // --- Tabs Components ---
 
-function HomeTab({ totalExpenses, focusHours, streak, transactions, baseCategories }: any) {
+function HomeTab({ totalExpenses, totalIncome, balance, focusHours, streak, transactions, baseCategories }: any) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
@@ -418,10 +433,11 @@ function HomeTab({ totalExpenses, focusHours, streak, transactions, baseCategori
           <p className="text-[10px] font-mono text-gray-400 mb-1">SEQUÊNCIA DIÁRIA</p>
           <p className="text-2xl font-display font-bold text-accent">{streak}<span className="text-sm text-gray-500"> dias</span></p>
         </div>
-        <div className="bg-gradient-to-br from-accent/20 to-transparent border border-accent/30 p-4 rounded-2xl col-span-2 flex items-center justify-between">
+                <div className="bg-gradient-to-br from-accent/20 to-transparent border border-accent/30 p-4 rounded-2xl col-span-2 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-mono text-accent mb-1 tracking-widest">DESPESAS DO MÊS</p>
-            <p className="text-3xl font-display font-bold text-white shadow-sm">${totalExpenses.toFixed(2)}</p>
+            <p className="text-[10px] font-mono text-accent mb-1 tracking-widest">SALDO DO MÊS</p>
+            <p className="text-3xl font-display font-bold text-white shadow-sm">${balance.toFixed(2)}</p>
+            {totalIncome > 0 && <p className="text-[10px] text-gray-400 font-mono mt-1">Entradas: ${totalIncome.toFixed(2)} | Despesas: ${totalExpenses.toFixed(2)}</p>}
           </div>
           <DollarSign className="w-10 h-10 text-accent opacity-50" />
         </div>
@@ -453,7 +469,13 @@ function HomeTab({ totalExpenses, focusHours, streak, transactions, baseCategori
   );
 }
 
-function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDelete, onAddCategory, periodFilter, setPeriodFilter }: any) {
+function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDelete, onAddCategory, periodFilter, setPeriodFilter, recurringItems, setRecurringItems }: any) {
+  const [financesTab, setFinancesTab] = useState<'transactions' | 'fixed'>('transactions');
+  const [recType, setRecType] = useState<'income' | 'expense'>('income');
+  const [recDesc, setRecDesc] = useState('');
+  const [recAmount, setRecAmount] = useState('');
+  const [recCategory, setRecCategory] = useState('food');
+  const [recDay, setRecDay] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('food');
   const [desc, setDesc] = useState('');
@@ -496,151 +518,243 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
     setNewCatLimit('');
   };
 
+  const handleAddRecurring = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recAmount || isNaN(Number(recAmount))) return;
+    const newItem: any = {
+      id: `rec-${Date.now()}`,
+      description: recDesc || 'Item Fixo',
+      amount: Number(recAmount),
+      type: recType,
+      category: recCategory,
+      dayOfMonth: recDay ? Number(recDay) : undefined
+    };
+    setRecurringItems((prev: any) => [...prev, newItem]);
+    setRecDesc('');
+    setRecAmount('');
+    setRecDay('');
+  };
+
+  const handleDeleteRecurring = (id: string) => {
+    setRecurringItems((prev: any) => prev.filter((r: any) => r.id !== id));
+  };
+
   return (
     <div className="space-y-6">
-      <div className="bg-[#0a0e17] border border-white/10 p-4 rounded-2xl shadow-lg">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xs font-mono text-accent tracking-widest">{editId ? 'EDITAR DESPESA' : 'ADICIONAR DESPESA'}</h2>
-          {editId && (
-            <button onClick={() => { setEditId(null); setAmount(''); setDesc(''); }} className="text-[10px] text-gray-500 hover:text-white">CANCELAR EDIÇÃO</button>
-          )}
-        </div>
-        <form onSubmit={handleRegister} className="flex flex-col gap-3">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <input 
-                type="number" step="0.01" placeholder="Valor ($)" value={amount} onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors"
-                required
-              />
+      <div className="flex bg-[#0a0e17] rounded-lg p-1 border border-white/10">
+        <button onClick={() => setFinancesTab('transactions')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${financesTab === 'transactions' ? 'bg-accent/20 text-accent' : 'text-gray-400 hover:text-white'}`}>REGISTROS</button>
+        <button onClick={() => setFinancesTab('fixed')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${financesTab === 'fixed' ? 'bg-accent/20 text-accent' : 'text-gray-400 hover:text-white'}`}>FIXOS</button>
+      </div>
+      
+      {financesTab === 'transactions' && (
+        <div className="space-y-6">
+          <div className="bg-[#0a0e17] border border-white/10 p-4 rounded-2xl shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xs font-mono text-accent tracking-widest">{editId ? 'EDITAR DESPESA' : 'ADICIONAR DESPESA'}</h2>
+              {editId && (
+                <button onClick={() => { setEditId(null); setAmount(''); setDesc(''); }} className="text-[10px] text-gray-500 hover:text-white">CANCELAR EDIÇÃO</button>
+              )}
             </div>
-            <div className="flex-1">
-              <select 
-                value={showNewCat ? 'new' : category} onChange={(e) => {
-                  if (e.target.value === 'new') {
-                    setShowNewCat(true);
-                    setCategory('');
-                  } else {
-                    setShowNewCat(false);
-                    setCategory(e.target.value);
-                  }
-                }}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-accent appearance-none"
-              >
-                {computedCategories.map((c: any) => (
-                  <option key={c.name} value={c.name} className="bg-[#0a0e17]">{c.label}</option>
-                ))}
-                <option value="new" className="bg-[#0a0e17] text-accent">+ Nova Categoria</option>
-              </select>
+            <form onSubmit={handleRegister} className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <input 
+                    type="number" step="0.01" placeholder="Valor ($)" value={amount} onChange={(e) => setAmount(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors"
+                    required
+                  />
+                </div>
+                <div className="flex-1">
+                  <select 
+                    value={showNewCat ? 'new' : category} onChange={(e) => {
+                      if (e.target.value === 'new') {
+                        setShowNewCat(true);
+                        setCategory('');
+                      } else {
+                        setShowNewCat(false);
+                        setCategory(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-accent appearance-none"
+                  >
+                    {computedCategories.map((c: any) => (
+                      <option key={c.name} value={c.name} className="bg-[#0a0e17]">{c.label}</option>
+                    ))}
+                    <option value="new" className="bg-[#0a0e17] text-accent">+ Nova Categoria</option>
+                  </select>
+                </div>
+              </div>
+              <input 
+                type="text" placeholder="Descrição" value={desc} onChange={(e) => setDesc(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
+              />
+              <button type="submit" className="w-full bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 font-bold py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" /> {editId ? 'SALVAR EDIÇÃO' : 'REGISTRAR'}
+              </button>
+            </form>
+
+            {showNewCat && (
+              <form onSubmit={handleCreateCategory} className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-3">
+                 <div className="flex justify-between items-center">
+                   <h3 className="text-[10px] font-mono text-gray-400">NOVA CATEGORIA</h3>
+                   <button type="button" onClick={() => { setShowNewCat(false); setCategory(''); }} className="text-[10px] text-gray-500 hover:text-white">CANCELAR</button>
+                 </div>
+                 <div className="flex gap-2">
+                    <input type="text" placeholder="Nome" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} required className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent" />
+                    <input type="number" placeholder="Limite (opcional)" value={newCatLimit} onChange={(e) => setNewCatLimit(e.target.value)} className="w-24 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent" />
+                    <button type="submit" className="bg-accent/20 text-accent px-3 rounded-lg text-xs font-bold hover:bg-accent/30">CRIAR</button>
+                 </div>
+              </form>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="text-[10px] font-mono text-gray-400 uppercase tracking-widest px-1">Progresso & Limites</h2>
+            <div className="space-y-3">
+              {computedCategories.filter((c: any) => c.limit || c.amount > 0).map((c: any) => {
+                const limit = c.limit || 0;
+                const percentage = limit > 0 ? (c.amount / limit) * 100 : 0;
+                const isOver = percentage > 100;
+                const isWarning = percentage > 70 && !isOver;
+                const barColor = isOver ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : isWarning ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]';
+                
+                return (
+                  <div key={c.name} className="bg-white/5 p-3 rounded-xl border border-white/5">
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-xs font-medium" style={{ color: c.color }}>{c.label}</span>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-white">${c.amount.toFixed(2)}</span>
+                        {limit > 0 && <span className="text-[10px] text-gray-500 ml-1">/ ${limit}</span>}
+                      </div>
+                    </div>
+                    {limit > 0 && (
+                      <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-1000 ${barColor}`} style={{ width: `${Math.min(percentage, 100)}%` }} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-          <input 
-            type="text" placeholder="Descrição" value={desc} onChange={(e) => setDesc(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
-          />
-          <button type="submit" className="w-full bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 font-bold py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
-            <Plus className="w-4 h-4" /> {editId ? 'SALVAR EDIÇÃO' : 'REGISTRAR'}
-          </button>
-        </form>
 
-        {showNewCat && (
-          <form onSubmit={handleCreateCategory} className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-3">
-             <div className="flex justify-between items-center">
-               <h3 className="text-[10px] font-mono text-gray-400">NOVA CATEGORIA</h3>
-               <button type="button" onClick={() => { setShowNewCat(false); setCategory(''); }} className="text-[10px] text-gray-500 hover:text-white">CANCELAR</button>
-             </div>
-             <div className="flex gap-2">
-                <input type="text" placeholder="Nome" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} required className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent" />
-                <input type="number" placeholder="Limite (opcional)" value={newCatLimit} onChange={(e) => setNewCatLimit(e.target.value)} className="w-24 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent" />
-                <button type="submit" className="bg-accent/20 text-accent px-3 rounded-lg text-xs font-bold hover:bg-accent/30">CRIAR</button>
-             </div>
-          </form>
-        )}
-      </div>
-
-      <div className="space-y-4">
-        <h2 className="text-[10px] font-mono text-gray-400 uppercase tracking-widest px-1">Progresso & Limites</h2>
-        <div className="space-y-3">
-          {computedCategories.filter((c: any) => c.limit || c.amount > 0).map((c: any) => {
-            const limit = c.limit || 0;
-            const percentage = limit > 0 ? (c.amount / limit) * 100 : 0;
-            const isOver = percentage > 100;
-            const isWarning = percentage > 70 && !isOver;
-            const barColor = isOver ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : isWarning ? 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]';
+          <div className="space-y-4">
+            <div className="flex justify-between items-center px-1">
+              <h2 className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Registros</h2>
+              <select 
+                value={periodFilter} 
+                onChange={(e: any) => setPeriodFilter(e.target.value)}
+                className="bg-transparent text-[10px] text-gray-400 font-mono focus:outline-none border-b border-white/20 pb-0.5"
+              >
+                <option value="current" className="bg-[#0a0e17]">Mês Atual</option>
+                <option value="previous" className="bg-[#0a0e17]">Mês Anterior</option>
+                <option value="all" className="bg-[#0a0e17]">Tudo</option>
+              </select>
+            </div>
             
-            return (
-              <div key={c.name} className="bg-white/5 p-3 rounded-xl border border-white/5">
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-xs font-medium" style={{ color: c.color }}>{c.label}</span>
-                  <span className="text-[10px] font-mono text-gray-400">${c.amount.toFixed(2)} {limit > 0 ? `/ $${limit}` : ''}</span>
-                </div>
-                {limit > 0 && (
-                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(percentage, 100)}%` }} />
+            <div className="space-y-2">
+              {transactions.map((t: any) => {
+                const cat = computedCategories.find((c: any) => c.name === t.category);
+                return (
+                  <div key={t.id} onClick={() => handleEdit(t)} className="bg-white/5 border border-white/5 p-3 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-colors">
+                    <div className="p-2 rounded-lg bg-white/5" style={{ color: cat?.color || 'var(--color-accent)' }}>
+                      {renderIcon(cat?.iconName || 'Activity', { className: 'w-4 h-4' })}
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <p className="text-sm font-medium text-white truncate">{t.description}</p>
+                      <p className="text-[10px] font-mono text-gray-500 uppercase">{cat?.label} • {new Date(t.timestamp).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm font-bold" style={{ color: cat?.color || 'var(--color-accent)' }}>${t.amount.toFixed(2)}</p>
+                      <button onClick={(e: any) => { e.stopPropagation(); onDelete(t.id); }} className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {pieData.length > 0 && (
-        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl h-60 flex flex-col items-center">
-          <h2 className="text-[10px] font-mono text-gray-400 w-full mb-2 uppercase tracking-widest">Distribuição</h2>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={4} dataKey="value" stroke="none">
-                {pieData.map((entry: any, index: number) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} style={{ filter: `drop-shadow(0 0 5px ${entry.color}40)` }} />
-                ))}
-              </Pie>
-              <RechartsTooltip 
-                contentStyle={{ backgroundColor: 'rgba(10, 14, 23, 0.9)', borderColor: 'var(--color-accent)', borderRadius: '8px', fontSize: '12px' }}
-                itemStyle={{ color: '#fff' }} formatter={(value: number) => [`$${value.toFixed(2)}`, 'Total']}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+                );
+              })}
+              {transactions.length === 0 && <p className="text-xs text-center text-gray-500 font-mono py-4">NENHUM REGISTRO NESTE PERÍODO</p>}
+            </div>
+          </div>
         </div>
       )}
 
-      <div>
-        <div className="flex justify-between items-center mb-3 px-1">
-          <h2 className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">Histórico de Transações</h2>
-          <select 
-            value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value as any)}
-            className="bg-transparent text-[10px] text-gray-400 font-mono focus:outline-none border-b border-white/20 pb-0.5"
-          >
-            <option value="current" className="bg-[#0a0e17]">Mês Atual</option>
-            <option value="previous" className="bg-[#0a0e17]">Mês Anterior</option>
-            <option value="all" className="bg-[#0a0e17]">Tudo</option>
-          </select>
-        </div>
-        
-        <div className="space-y-2">
-          {transactions.map((t: any) => {
-            const cat = computedCategories.find((c: any) => c.name === t.category);
-            return (
-              <div key={t.id} onClick={() => handleEdit(t)} className="bg-white/5 border border-white/5 p-3 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-colors">
-                <div className="p-2 rounded-lg bg-white/5" style={{ color: cat?.color || 'var(--color-accent)' }}>
-                  {renderIcon(cat?.iconName || 'Activity', { className: 'w-4 h-4' })}
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-medium text-white truncate">{t.description}</p>
-                  <p className="text-[10px] font-mono text-gray-500 uppercase">{cat?.label} • {new Date(t.timestamp).toLocaleDateString()}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <p className="text-sm font-bold" style={{ color: cat?.color || 'var(--color-accent)' }}>${t.amount.toFixed(2)}</p>
-                  <button onClick={(e) => { e.stopPropagation(); onDelete(t.id); }} className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+      {financesTab === 'fixed' && (
+        <div className="space-y-6">
+          <div className="bg-[#0a0e17] border border-white/10 p-4 rounded-2xl shadow-lg">
+            <h2 className="text-xs font-mono text-accent tracking-widest mb-4">ADICIONAR ITEM FIXO</h2>
+            <form onSubmit={handleAddRecurring} className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <select value={recType} onChange={(e: any) => setRecType(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-accent appearance-none">
+                  <option value="income" className="bg-[#0a0e17]">Entrada</option>
+                  <option value="expense" className="bg-[#0a0e17]">Despesa</option>
+                </select>
+                <input type="number" step="0.01" placeholder="Valor ($)" value={recAmount} onChange={(e: any) => setRecAmount(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors" required />
               </div>
-            );
-          })}
-          {transactions.length === 0 && <p className="text-xs text-center text-gray-500 font-mono py-4">NENHUM REGISTRO NESTE PERÍODO</p>}
+              <div className="flex gap-3">
+                <select value={recCategory} onChange={(e: any) => setRecCategory(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-accent appearance-none">
+                  {computedCategories.map((c: any) => (
+                    <option key={c.name} value={c.name} className="bg-[#0a0e17]">{c.label}</option>
+                  ))}
+                </select>
+                <input type="number" placeholder="Dia (Opcional)" value={recDay} onChange={(e: any) => setRecDay(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent" min="1" max="31" />
+              </div>
+              <input type="text" placeholder="Descrição (ex: Salário)" value={recDesc} onChange={(e: any) => setRecDesc(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent" required />
+              <button type="submit" className="w-full bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 font-bold py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" /> ADICIONAR ITEM FIXO
+              </button>
+            </form>
+          </div>
+
+          <div className="space-y-4">
+             <h3 className="text-[10px] font-mono text-gray-400 uppercase tracking-widest px-1">Entradas Fixas</h3>
+             <div className="space-y-2">
+               {recurringItems.filter((r: any) => r.type === 'income').map((r: any) => {
+                 const cat = computedCategories.find((c: any) => c.name === r.category);
+                 return (
+                   <div key={r.id} className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl flex items-center gap-3">
+                     <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-500">
+                       {renderIcon(cat?.iconName || 'Activity', { className: 'w-4 h-4' })}
+                     </div>
+                     <div className="flex-1 overflow-hidden">
+                       <p className="text-sm font-medium text-emerald-100 truncate">{r.description}</p>
+                       <p className="text-[10px] font-mono text-emerald-500/70 uppercase">{cat?.label} {r.dayOfMonth ? `• Dia ${r.dayOfMonth}` : ''}</p>
+                     </div>
+                     <div className="flex items-center gap-3">
+                       <p className="text-sm font-bold text-emerald-400">+${r.amount.toFixed(2)}</p>
+                       <button onClick={() => handleDeleteRecurring(r.id)} className="text-gray-500 hover:text-red-400 p-1"><Trash2 className="w-4 h-4" /></button>
+                     </div>
+                   </div>
+                 );
+               })}
+               {recurringItems.filter((r: any) => r.type === 'income').length === 0 && <p className="text-xs text-gray-500 px-2 font-mono">Nenhuma entrada fixa.</p>}
+             </div>
+
+             <h3 className="text-[10px] font-mono text-gray-400 uppercase tracking-widest px-1 mt-6">Despesas Fixas</h3>
+             <div className="space-y-2">
+               {recurringItems.filter((r: any) => r.type === 'expense').map((r: any) => {
+                 const cat = computedCategories.find((c: any) => c.name === r.category);
+                 return (
+                   <div key={r.id} className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-3">
+                     <div className="p-2 rounded-lg bg-red-500/20 text-red-500">
+                       {renderIcon(cat?.iconName || 'Activity', { className: 'w-4 h-4' })}
+                     </div>
+                     <div className="flex-1 overflow-hidden">
+                       <p className="text-sm font-medium text-red-100 truncate">{r.description}</p>
+                       <p className="text-[10px] font-mono text-red-500/70 uppercase">{cat?.label} {r.dayOfMonth ? `• Dia ${r.dayOfMonth}` : ''}</p>
+                     </div>
+                     <div className="flex items-center gap-3">
+                       <p className="text-sm font-bold text-red-400">-${r.amount.toFixed(2)}</p>
+                       <button onClick={() => handleDeleteRecurring(r.id)} className="text-gray-500 hover:text-red-400 p-1"><Trash2 className="w-4 h-4" /></button>
+                     </div>
+                   </div>
+                 );
+               })}
+               {recurringItems.filter((r: any) => r.type === 'expense').length === 0 && <p className="text-xs text-gray-500 px-2 font-mono">Nenhuma despesa fixa.</p>}
+             </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -650,6 +764,7 @@ function CalendarTab({ calendarBlocks, onToggle, onAdd, onDelete }: any) {
   const [category, setCategory] = useState('work');
   const [duration, setDuration] = useState('60');
   const [editId, setEditId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -668,8 +783,36 @@ function CalendarTab({ calendarBlocks, onToggle, onAdd, onDelete }: any) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Filter blocks
+  const now = new Date();
+  
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+  
+  const endOfWeek = new Date(now);
+  endOfWeek.setDate(now.getDate() + (6 - now.getDay()));
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const filteredBlocks = calendarBlocks.filter((block: any) => {
+    const d = new Date(block.timestamp || Date.now());
+    if (viewMode === 'week') {
+      return d >= startOfWeek && d <= endOfWeek;
+    } else {
+      return d >= startOfMonth && d <= endOfMonth;
+    }
+  });
+
   return (
     <div className="space-y-6">
+      <div className="flex bg-[#0a0e17] rounded-lg p-1 border border-white/10">
+        <button onClick={() => setViewMode('week')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${viewMode === 'week' ? 'bg-accent/20 text-accent' : 'text-gray-400 hover:text-white'}`}>SEMANA</button>
+        <button onClick={() => setViewMode('month')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${viewMode === 'month' ? 'bg-accent/20 text-accent' : 'text-gray-400 hover:text-white'}`}>MÊS</button>
+      </div>
+
       <div className="bg-[#0a0e17] border border-white/10 p-4 rounded-2xl shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xs font-mono text-accent tracking-widest">{editId ? 'EDITAR BLOCO' : 'NOVO BLOCO DE FOCO'}</h2>
@@ -706,7 +849,10 @@ function CalendarTab({ calendarBlocks, onToggle, onAdd, onDelete }: any) {
       </div>
 
       <div className="space-y-3">
-        {calendarBlocks.map((block: any) => (
+        {filteredBlocks.length === 0 && (
+          <p className="text-xs text-center text-gray-500 font-mono py-4">NENHUM BLOCO NESTE PERÍODO</p>
+        )}
+        {filteredBlocks.map((block: any) => (
           <div key={block.id} onClick={() => handleEdit(block)} className={`p-4 rounded-2xl border transition-all flex items-center gap-4 cursor-pointer hover:bg-white/10 ${block.completed ? 'bg-[#10b981]/5 border-[#10b981]/20 opacity-70' : 'bg-white/5 border-white/10 hover:border-white/20'}`}>
             <button 
               onClick={(e) => { e.stopPropagation(); onToggle(block.id); }}
@@ -716,7 +862,9 @@ function CalendarTab({ calendarBlocks, onToggle, onAdd, onDelete }: any) {
             </button>
             <div className="flex-1 overflow-hidden">
               <h3 className={`text-sm font-bold truncate ${block.completed ? 'text-gray-400 line-through' : 'text-white'}`}>{block.title}</h3>
-              <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">{block.time} • {block.durationMin}M • {block.category}</p>
+              <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">
+                {new Date(block.timestamp || Date.now()).toLocaleDateString()} • {block.durationMin}M • {block.category}
+              </p>
             </div>
             <button onClick={(e) => { e.stopPropagation(); onDelete(block.id); }} className="p-2 text-gray-600 hover:text-red-400 rounded-md transition-colors shrink-0">
               <Trash2 className="w-4 h-4" />

@@ -38,7 +38,7 @@
   --font-display: "Space Grotesk", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
   
-  --shadow-neon-cyan: 0 0 15px color-mix(in srgb, var(--color-accent) 60%, transparent), 0 0 35px color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --shadow-neon-cyan: 0 0 20px color-mix(in srgb, var(--color-accent) 80%, transparent), 0 0 40px color-mix(in srgb, var(--color-accent) 50%, transparent), 0 0 60px color-mix(in srgb, var(--color-accent) 20%, transparent);
   --shadow-neon-cyan-strong: 0 0 25px color-mix(in srgb, var(--color-accent) 80%, transparent), 0 0 60px color-mix(in srgb, var(--color-accent) 50%, transparent), 0 0 100px color-mix(in srgb, var(--color-accent) 20%, transparent);
   --shadow-glass: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.4);
 }

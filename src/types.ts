@@ -63,3 +63,12 @@ export interface WorkoutSession {
   date: Date;
   exercises: WorkoutSessionExercise[];
 }
+
+export interface RecurringItem {
+  id: string;
+  description: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  dayOfMonth?: number;
+}
