@@ -17,7 +17,8 @@ import {
   HeartPulse,
   LogOut,
   Sparkles,
-  Dumbbell
+  Dumbbell,
+  Palette
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Transaction, CalendarBlock, CategoryData, Exercise, WorkoutSession, WorkoutSet } from './types';
@@ -43,9 +44,9 @@ const defaultBlocks = [
 ];
 
 const baseCategories = [
-  { name: 'food', label: 'Alimentação', color: '#00f2fe', iconName: 'Utensils' },
+  { name: 'food', label: 'Alimentação', color: 'var(--color-accent)', iconName: 'Utensils' },
   { name: 'transport', label: 'Transporte', color: '#38bdf8', iconName: 'Car' },
-  { name: 'tech', label: 'Tecnologia', color: '#a855f7', iconName: 'Cpu' },
+  { name: 'tech', label: 'Tecnologia', color: 'var(--color-accent)', iconName: 'Cpu' },
   { name: 'health', label: 'Saúde', color: '#10b981', iconName: 'HeartPulse' }
 ];
 
@@ -58,10 +59,16 @@ export default function App() {
   const [customCategories, setCustomCategories] = useState<any[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [workoutSessions, setWorkoutSessions] = useState<WorkoutSession[]>([]);
+  const [themeColor, setThemeColor] = useState<string>('cyan');
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Initial Load
   useEffect(() => {
+    const savedTheme = localStorage.getItem('pos-theme');
+    if (savedTheme) {
+      setThemeColor(savedTheme);
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
     const savedTx = localStorage.getItem('pos-transactions');
     if (savedTx) {
       try {
@@ -113,7 +120,8 @@ export default function App() {
     localStorage.setItem('pos-categories', JSON.stringify(customCategories));
     localStorage.setItem('pos-exercises', JSON.stringify(exercises));
     localStorage.setItem('pos-workouts', JSON.stringify(workoutSessions));
-  }, [transactions, calendarBlocks, customCategories, exercises, workoutSessions, isLoaded]);
+    localStorage.setItem('pos-theme', themeColor);
+  }, [transactions, calendarBlocks, customCategories, exercises, workoutSessions, themeColor, isLoaded]);
 
   const [periodFilter, setPeriodFilter] = useState<'current' | 'previous' | 'all'>('current');
 
@@ -159,7 +167,7 @@ export default function App() {
       return d.getTime();
     });
     
-    const uniqueDates = Array.from(new Set(dates)).sort((a, b) => b - a);
+    const uniqueDates = Array.from(new Set(dates)).sort((a: any, b: any) => b - a);
     
     let currentStreak = 0;
     const today = new Date();
@@ -290,20 +298,31 @@ export default function App() {
     }
   };
 
+  const cycleTheme = () => {
+    const colors = ['cyan', 'purple', 'emerald', 'rose', 'amber'];
+    const currentIndex = colors.indexOf(themeColor);
+    const nextTheme = colors[(currentIndex + 1) % colors.length];
+    setThemeColor(nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+  };
+
   if (!isLoaded) return <div className="min-h-screen bg-[#05070c]" />;
 
   return (
     <div className="min-h-screen bg-[#05070c] text-white flex flex-col font-sans cyber-grid-fine relative">
       <header className="p-4 border-b border-white/10 bg-[#0a0e17]/80 backdrop-blur-md sticky top-0 z-40 flex justify-between items-center shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00f2fe] to-[#a855f7] flex items-center justify-center font-display font-bold text-black shadow-neon-cyan">
+          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center font-display font-bold text-black shadow-neon-cyan">
             P
           </div>
           <div>
             <h1 className="font-display font-bold tracking-widest text-sm text-white">PERSONAL OS</h1>
-            <p className="text-[10px] text-[#00f2fe] font-mono tracking-widest">SISTEMA ATIVO</p>
+            <p className="text-[10px] text-accent font-mono tracking-widest">SISTEMA ATIVO</p>
           </div>
         </div>
+        <button onClick={cycleTheme} className="p-2 bg-accent/10 border border-accent/30 rounded-lg hover:bg-accent/20 transition-all text-accent hover:shadow-neon-cyan" title="Mudar Tema">
+          <Palette className="w-5 h-5" />
+        </button>
       </header>
 
       <main className="flex-1 overflow-y-auto w-full pb-24">
@@ -358,6 +377,11 @@ export default function App() {
                 <SettingsTab 
                   onExport={handleExportData}
                   onClear={handleClearData}
+                  themeColor={themeColor}
+                  onChangeTheme={(color: string) => {
+                    setThemeColor(color);
+                    document.documentElement.setAttribute('data-theme', color);
+                  }}
                 />
               )}
             </motion.div>
@@ -385,21 +409,21 @@ function HomeTab({ totalExpenses, focusHours, streak, transactions, baseCategori
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white/5 border border-white/10 p-4 rounded-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-20"><Activity className="w-10 h-10 text-[#00f2fe]" /></div>
+          <div className="absolute top-0 right-0 p-3 opacity-20"><Activity className="w-10 h-10 text-accent" /></div>
           <p className="text-[10px] font-mono text-gray-400 mb-1">HORAS DE FOCO</p>
-          <p className="text-2xl font-display font-bold text-[#00f2fe]">{focusHours.toFixed(1)}<span className="text-sm text-gray-500">h</span></p>
+          <p className="text-2xl font-display font-bold text-accent">{focusHours.toFixed(1)}<span className="text-sm text-gray-500">h</span></p>
         </div>
         <div className="bg-white/5 border border-white/10 p-4 rounded-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-20"><Flame className="w-10 h-10 text-[#a855f7]" /></div>
+          <div className="absolute top-0 right-0 p-3 opacity-20"><Flame className="w-10 h-10 text-accent" /></div>
           <p className="text-[10px] font-mono text-gray-400 mb-1">SEQUÊNCIA DIÁRIA</p>
-          <p className="text-2xl font-display font-bold text-[#a855f7]">{streak}<span className="text-sm text-gray-500"> dias</span></p>
+          <p className="text-2xl font-display font-bold text-accent">{streak}<span className="text-sm text-gray-500"> dias</span></p>
         </div>
-        <div className="bg-gradient-to-br from-[#00f2fe]/20 to-transparent border border-[#00f2fe]/30 p-4 rounded-2xl col-span-2 flex items-center justify-between">
+        <div className="bg-gradient-to-br from-accent/20 to-transparent border border-accent/30 p-4 rounded-2xl col-span-2 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-mono text-[#00f2fe] mb-1 tracking-widest">DESPESAS DO MÊS</p>
+            <p className="text-[10px] font-mono text-accent mb-1 tracking-widest">DESPESAS DO MÊS</p>
             <p className="text-3xl font-display font-bold text-white shadow-sm">${totalExpenses.toFixed(2)}</p>
           </div>
-          <DollarSign className="w-10 h-10 text-[#00f2fe] opacity-50" />
+          <DollarSign className="w-10 h-10 text-accent opacity-50" />
         </div>
       </div>
 
@@ -416,7 +440,7 @@ function HomeTab({ totalExpenses, focusHours, streak, transactions, baseCategori
                   <p className="text-sm font-medium text-white">{t.description}</p>
                   <p className="text-[10px] font-mono text-gray-500 uppercase mt-0.5">{cat?.label || t.category}</p>
                 </div>
-                <p className="text-sm font-bold" style={{ color: cat?.color || '#00f2fe' }}>
+                <p className="text-sm font-bold" style={{ color: cat?.color || 'var(--color-accent)' }}>
                   ${t.amount.toFixed(2)}
                 </p>
               </div>
@@ -476,7 +500,7 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
     <div className="space-y-6">
       <div className="bg-[#0a0e17] border border-white/10 p-4 rounded-2xl shadow-lg">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xs font-mono text-[#00f2fe] tracking-widest">{editId ? 'EDITAR DESPESA' : 'ADICIONAR DESPESA'}</h2>
+          <h2 className="text-xs font-mono text-accent tracking-widest">{editId ? 'EDITAR DESPESA' : 'ADICIONAR DESPESA'}</h2>
           {editId && (
             <button onClick={() => { setEditId(null); setAmount(''); setDesc(''); }} className="text-[10px] text-gray-500 hover:text-white">CANCELAR EDIÇÃO</button>
           )}
@@ -486,41 +510,49 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
             <div className="flex-1">
               <input 
                 type="number" step="0.01" placeholder="Valor ($)" value={amount} onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe] transition-colors"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors"
                 required
               />
             </div>
             <div className="flex-1">
               <select 
-                value={category} onChange={(e) => {
-                  if (e.target.value === 'new') setShowNewCat(true);
-                  else setCategory(e.target.value);
+                value={showNewCat ? 'new' : category} onChange={(e) => {
+                  if (e.target.value === 'new') {
+                    setShowNewCat(true);
+                    setCategory('');
+                  } else {
+                    setShowNewCat(false);
+                    setCategory(e.target.value);
+                  }
                 }}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-[#00f2fe] appearance-none"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-accent appearance-none"
               >
                 {computedCategories.map((c: any) => (
                   <option key={c.name} value={c.name} className="bg-[#0a0e17]">{c.label}</option>
                 ))}
-                <option value="new" className="bg-[#0a0e17] text-[#00f2fe]">+ Nova Categoria</option>
+                <option value="new" className="bg-[#0a0e17] text-accent">+ Nova Categoria</option>
               </select>
             </div>
           </div>
           <input 
             type="text" placeholder="Descrição" value={desc} onChange={(e) => setDesc(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe]"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
           />
-          <button type="submit" className="w-full bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 hover:bg-[#00f2fe]/30 font-bold py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+          <button type="submit" className="w-full bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 font-bold py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
             <Plus className="w-4 h-4" /> {editId ? 'SALVAR EDIÇÃO' : 'REGISTRAR'}
           </button>
         </form>
 
         {showNewCat && (
           <form onSubmit={handleCreateCategory} className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-3">
-             <h3 className="text-[10px] font-mono text-gray-400">NOVA CATEGORIA</h3>
+             <div className="flex justify-between items-center">
+               <h3 className="text-[10px] font-mono text-gray-400">NOVA CATEGORIA</h3>
+               <button type="button" onClick={() => { setShowNewCat(false); setCategory(''); }} className="text-[10px] text-gray-500 hover:text-white">CANCELAR</button>
+             </div>
              <div className="flex gap-2">
-                <input type="text" placeholder="Nome" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} required className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#00f2fe]" />
-                <input type="number" placeholder="Limite (opcional)" value={newCatLimit} onChange={(e) => setNewCatLimit(e.target.value)} className="w-24 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#00f2fe]" />
-                <button type="submit" className="bg-[#00f2fe]/20 text-[#00f2fe] px-3 rounded-lg text-xs font-bold">CRIAR</button>
+                <input type="text" placeholder="Nome" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} required className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent" />
+                <input type="number" placeholder="Limite (opcional)" value={newCatLimit} onChange={(e) => setNewCatLimit(e.target.value)} className="w-24 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent" />
+                <button type="submit" className="bg-accent/20 text-accent px-3 rounded-lg text-xs font-bold hover:bg-accent/30">CRIAR</button>
              </div>
           </form>
         )}
@@ -564,7 +596,7 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
                 ))}
               </Pie>
               <RechartsTooltip 
-                contentStyle={{ backgroundColor: 'rgba(10, 14, 23, 0.9)', borderColor: 'rgba(0, 242, 254, 0.3)', borderRadius: '8px', fontSize: '12px' }}
+                contentStyle={{ backgroundColor: 'rgba(10, 14, 23, 0.9)', borderColor: 'var(--color-accent)', borderRadius: '8px', fontSize: '12px' }}
                 itemStyle={{ color: '#fff' }} formatter={(value: number) => [`$${value.toFixed(2)}`, 'Total']}
               />
             </PieChart>
@@ -590,7 +622,7 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
             const cat = computedCategories.find((c: any) => c.name === t.category);
             return (
               <div key={t.id} onClick={() => handleEdit(t)} className="bg-white/5 border border-white/5 p-3 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-white/10 transition-colors">
-                <div className="p-2 rounded-lg bg-white/5" style={{ color: cat?.color || '#00f2fe' }}>
+                <div className="p-2 rounded-lg bg-white/5" style={{ color: cat?.color || 'var(--color-accent)' }}>
                   {renderIcon(cat?.iconName || 'Activity', { className: 'w-4 h-4' })}
                 </div>
                 <div className="flex-1 overflow-hidden">
@@ -598,7 +630,7 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
                   <p className="text-[10px] font-mono text-gray-500 uppercase">{cat?.label} • {new Date(t.timestamp).toLocaleDateString()}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="text-sm font-bold" style={{ color: cat?.color || '#00f2fe' }}>${t.amount.toFixed(2)}</p>
+                  <p className="text-sm font-bold" style={{ color: cat?.color || 'var(--color-accent)' }}>${t.amount.toFixed(2)}</p>
                   <button onClick={(e) => { e.stopPropagation(); onDelete(t.id); }} className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors">
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -640,7 +672,7 @@ function CalendarTab({ calendarBlocks, onToggle, onAdd, onDelete }: any) {
     <div className="space-y-6">
       <div className="bg-[#0a0e17] border border-white/10 p-4 rounded-2xl shadow-lg">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xs font-mono text-[#a855f7] tracking-widest">{editId ? 'EDITAR BLOCO' : 'NOVO BLOCO DE FOCO'}</h2>
+          <h2 className="text-xs font-mono text-accent tracking-widest">{editId ? 'EDITAR BLOCO' : 'NOVO BLOCO DE FOCO'}</h2>
           {editId && (
             <button onClick={() => { setEditId(null); setTitle(''); }} className="text-[10px] text-gray-500 hover:text-white">CANCELAR EDIÇÃO</button>
           )}
@@ -648,13 +680,13 @@ function CalendarTab({ calendarBlocks, onToggle, onAdd, onDelete }: any) {
         <form onSubmit={handleAdd} className="flex flex-col gap-3">
           <input 
             type="text" placeholder="Ex: Estudar React" value={title} onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#a855f7]"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
             required
           />
           <div className="flex gap-3">
             <select 
               value={category} onChange={(e) => setCategory(e.target.value)}
-              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-[#a855f7] appearance-none"
+              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-accent appearance-none"
             >
               <option value="work">Trabalho</option>
               <option value="personal">Pessoal</option>
@@ -663,11 +695,11 @@ function CalendarTab({ calendarBlocks, onToggle, onAdd, onDelete }: any) {
             </select>
             <input 
               type="number" placeholder="Minutos" value={duration} onChange={(e) => setDuration(e.target.value)}
-              className="w-24 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#a855f7]"
+              className="w-24 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
               required min="1"
             />
           </div>
-          <button type="submit" className="w-full bg-[#a855f7]/20 text-[#a855f7] border border-[#a855f7]/40 hover:bg-[#a855f7]/30 font-bold py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
+          <button type="submit" className="w-full bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 font-bold py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
             <Plus className="w-4 h-4" /> {editId ? 'SALVAR EDIÇÃO' : 'ADICIONAR'}
           </button>
         </form>
@@ -678,7 +710,7 @@ function CalendarTab({ calendarBlocks, onToggle, onAdd, onDelete }: any) {
           <div key={block.id} onClick={() => handleEdit(block)} className={`p-4 rounded-2xl border transition-all flex items-center gap-4 cursor-pointer hover:bg-white/10 ${block.completed ? 'bg-[#10b981]/5 border-[#10b981]/20 opacity-70' : 'bg-white/5 border-white/10 hover:border-white/20'}`}>
             <button 
               onClick={(e) => { e.stopPropagation(); onToggle(block.id); }}
-              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all shrink-0 ${block.completed ? 'bg-[#10b981] border-[#10b981] text-white' : 'border-gray-500 text-transparent hover:border-[#00f2fe]'}`}
+              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all shrink-0 ${block.completed ? 'bg-[#10b981] border-[#10b981] text-white' : 'border-gray-500 text-transparent hover:border-accent'}`}
             >
               <CheckCircle2 className="w-4 h-4" />
             </button>
@@ -777,38 +809,47 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
   return (
     <div className="space-y-6">
       <div className="flex bg-[#0a0e17] rounded-lg p-1 border border-white/10">
-        <button onClick={() => setActiveTab('record')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${activeTab === 'record' ? 'bg-[#00f2fe]/20 text-[#00f2fe]' : 'text-gray-400 hover:text-white'}`}>REGISTRAR</button>
-        <button onClick={() => setActiveTab('history')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${activeTab === 'history' ? 'bg-[#00f2fe]/20 text-[#00f2fe]' : 'text-gray-400 hover:text-white'}`}>HISTÓRICO</button>
-        <button onClick={() => setActiveTab('evolution')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${activeTab === 'evolution' ? 'bg-[#00f2fe]/20 text-[#00f2fe]' : 'text-gray-400 hover:text-white'}`}>EVOLUÇÃO</button>
+        <button onClick={() => setActiveTab('record')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${activeTab === 'record' ? 'bg-accent/20 text-accent' : 'text-gray-400 hover:text-white'}`}>REGISTRAR</button>
+        <button onClick={() => setActiveTab('history')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${activeTab === 'history' ? 'bg-accent/20 text-accent' : 'text-gray-400 hover:text-white'}`}>HISTÓRICO</button>
+        <button onClick={() => setActiveTab('evolution')} className={`flex-1 text-xs py-2 rounded-md font-bold transition-colors ${activeTab === 'evolution' ? 'bg-accent/20 text-accent' : 'text-gray-400 hover:text-white'}`}>EVOLUÇÃO</button>
       </div>
 
       {activeTab === 'record' && (
         <div className="space-y-4">
           <div className="bg-[#0a0e17] border border-white/10 p-4 rounded-2xl shadow-lg">
-            <h2 className="text-xs font-mono text-[#00f2fe] tracking-widest mb-4">ADICIONAR EXERCÍCIO</h2>
+            <h2 className="text-xs font-mono text-accent tracking-widest mb-4">ADICIONAR EXERCÍCIO</h2>
             
             <div className="mb-4">
               <select 
-                value={selectedExerciseId} 
+                value={showNewEx ? 'new' : selectedExerciseId} 
                 onChange={(e) => {
-                  if (e.target.value === 'new') setShowNewEx(true);
-                  else setSelectedExerciseId(e.target.value);
+                  if (e.target.value === 'new') {
+                    setShowNewEx(true);
+                    setSelectedExerciseId('');
+                  } else {
+                    setShowNewEx(false);
+                    setSelectedExerciseId(e.target.value);
+                  }
                 }}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe]"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
               >
                 <option value="" disabled className="bg-[#0a0e17] text-gray-500">Selecione o exercício...</option>
                 {exercises.map((ex: any) => (
                   <option key={ex.id} value={ex.id} className="bg-[#0a0e17]">{ex.name} ({ex.muscleGroup})</option>
                 ))}
-                <option value="new" className="bg-[#0a0e17] text-[#00f2fe]">+ Criar Novo Exercício</option>
+                <option value="new" className="bg-[#0a0e17] text-accent">+ Criar Novo Exercício</option>
               </select>
             </div>
 
             {showNewEx && (
               <form onSubmit={handleCreateExercise} className="mb-4 p-3 bg-white/5 rounded-lg border border-white/5 space-y-3">
-                <input type="text" placeholder="Nome do exercício" value={newExName} onChange={(e) => setNewExName(e.target.value)} required className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe]" />
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] font-mono text-gray-400">NOVO EXERCÍCIO</span>
+                  <button type="button" onClick={() => { setShowNewEx(false); setSelectedExerciseId(''); }} className="text-[10px] text-gray-500 hover:text-white">CANCELAR</button>
+                </div>
+                <input type="text" placeholder="Nome do exercício" value={newExName} onChange={(e) => setNewExName(e.target.value)} required className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent" />
                 <div className="flex gap-2">
-                  <select value={newExGroup} onChange={(e) => setNewExGroup(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe]">
+                  <select value={newExGroup} onChange={(e) => setNewExGroup(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent">
                     <option value="Peito" className="bg-[#0a0e17]">Peito</option>
                     <option value="Costas" className="bg-[#0a0e17]">Costas</option>
                     <option value="Pernas" className="bg-[#0a0e17]">Pernas</option>
@@ -816,7 +857,7 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
                     <option value="Braços" className="bg-[#0a0e17]">Braços</option>
                     <option value="Core" className="bg-[#0a0e17]">Core</option>
                   </select>
-                  <button type="submit" className="bg-[#00f2fe]/20 text-[#00f2fe] px-4 rounded-lg font-bold text-xs">CRIAR</button>
+                  <button type="submit" className="bg-accent/20 text-accent px-4 rounded-lg font-bold text-xs hover:bg-accent/30">CRIAR</button>
                 </div>
               </form>
             )}
@@ -828,14 +869,14 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
               </div>
               {sets.map((set, i) => (
                 <div key={i} className="grid grid-cols-2 gap-2">
-                  <input type="number" value={set.reps} onChange={(e) => { const n = [...sets]; n[i].reps = e.target.value; setSets(n); }} placeholder="0" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe]" />
-                  <input type="number" value={set.weight} onChange={(e) => { const n = [...sets]; n[i].weight = e.target.value; setSets(n); }} placeholder="0" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe]" />
+                  <input type="number" value={set.reps} onChange={(e) => { const n = [...sets]; n[i].reps = e.target.value; setSets(n); }} placeholder="0" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent" />
+                  <input type="number" value={set.weight} onChange={(e) => { const n = [...sets]; n[i].weight = e.target.value; setSets(n); }} placeholder="0" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent" />
                 </div>
               ))}
-              <button onClick={() => setSets([...sets, { reps: '', weight: '' }])} className="w-full text-xs text-[#00f2fe] py-2 bg-[#00f2fe]/5 rounded border border-dashed border-[#00f2fe]/30 hover:bg-[#00f2fe]/10">+ ADICIONAR SÉRIE</button>
+              <button onClick={() => setSets([...sets, { reps: '', weight: '' }])} className="w-full text-xs text-accent py-2 bg-accent/5 rounded border border-dashed border-accent/30 hover:bg-accent/10">+ ADICIONAR SÉRIE</button>
             </div>
 
-            <button onClick={handleAddSetToSession} disabled={!selectedExerciseId} className="w-full bg-[#0a0e17] border border-[#00f2fe]/40 text-[#00f2fe] hover:bg-[#00f2fe]/10 font-bold py-2 rounded-lg text-sm transition-colors disabled:opacity-50">
+            <button onClick={handleAddSetToSession} disabled={!selectedExerciseId} className="w-full bg-[#0a0e17] border border-accent/40 text-accent hover:bg-accent/10 font-bold py-2 rounded-lg text-sm transition-colors disabled:opacity-50">
               REGISTRAR EXERCÍCIO
             </button>
           </div>
@@ -848,7 +889,7 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
                   const ex = exercises.find((x: any) => x.id === e.exerciseId);
                   return (
                     <div key={i} className="bg-white/5 p-3 rounded-xl border border-white/5">
-                      <p className="font-bold text-sm text-[#00f2fe] mb-1">{ex?.name}</p>
+                      <p className="font-bold text-sm text-accent mb-1">{ex?.name}</p>
                       <div className="flex flex-wrap gap-2">
                         {e.sets.map((s, j) => (
                           <span key={j} className="text-xs bg-black/40 px-2 py-1 rounded text-gray-300 font-mono">
@@ -860,7 +901,7 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
                   )
                 })}
               </div>
-              <button onClick={handleFinishSession} className="w-full bg-[#00f2fe]/20 text-[#00f2fe] border border-[#00f2fe]/40 hover:bg-[#00f2fe]/30 font-bold py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+              <button onClick={handleFinishSession} className="w-full bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 font-bold py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-4 h-4" /> FINALIZAR TREINO
               </button>
             </div>
@@ -872,7 +913,7 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
         <div className="space-y-4">
           {workoutSessions.map((session: any) => (
             <div key={session.id} className="bg-[#0a0e17] border border-white/10 p-4 rounded-2xl">
-              <h3 className="text-xs font-mono text-[#a855f7] tracking-widest mb-3">{new Date(session.date).toLocaleDateString()}</h3>
+              <h3 className="text-xs font-mono text-accent tracking-widest mb-3">{new Date(session.date).toLocaleDateString()}</h3>
               <div className="space-y-2">
                 {session.exercises.map((e: any, i: number) => {
                   const ex = exercises.find((x: any) => x.id === e.exerciseId);
@@ -883,7 +924,7 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
                         <p className="text-sm font-bold text-gray-200">{ex?.name}</p>
                         <p className="text-[10px] text-gray-500 font-mono">{e.sets.length} séries</p>
                       </div>
-                      <p className="text-xs font-mono text-[#a855f7] bg-[#a855f7]/10 px-2 py-1 rounded">Vol: {volume}kg</p>
+                      <p className="text-xs font-mono text-accent bg-accent/10 px-2 py-1 rounded">Vol: {volume}kg</p>
                     </div>
                   );
                 })}
@@ -901,7 +942,7 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
             <select 
               value={chartExerciseId} 
               onChange={(e) => setChartExerciseId(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00f2fe]"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
             >
               <option value="" disabled className="bg-[#0a0e17] text-gray-500">Escolha...</option>
               {exercises.map((ex: any) => (
@@ -914,14 +955,14 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white/5 border border-white/10 p-4 rounded-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-3 opacity-20"><Flame className="w-10 h-10 text-[#00f2fe]" /></div>
+                  <div className="absolute top-0 right-0 p-3 opacity-20"><Flame className="w-10 h-10 text-accent" /></div>
                   <p className="text-[10px] font-mono text-gray-400 mb-1">CARGA MÁXIMA</p>
-                  <p className="text-2xl font-display font-bold text-[#00f2fe]">{bestOverallSet?.weightKg || 0}<span className="text-sm text-gray-500">kg</span></p>
+                  <p className="text-2xl font-display font-bold text-accent">{bestOverallSet?.weightKg || 0}<span className="text-sm text-gray-500">kg</span></p>
                 </div>
                 <div className="bg-white/5 border border-white/10 p-4 rounded-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-3 opacity-20"><Activity className="w-10 h-10 text-[#a855f7]" /></div>
+                  <div className="absolute top-0 right-0 p-3 opacity-20"><Activity className="w-10 h-10 text-accent" /></div>
                   <p className="text-[10px] font-mono text-gray-400 mb-1">1RM ESTIMADO</p>
-                  <p className="text-2xl font-display font-bold text-[#a855f7]">{estimated1RM}<span className="text-sm text-gray-500">kg</span></p>
+                  <p className="text-2xl font-display font-bold text-accent">{estimated1RM}<span className="text-sm text-gray-500">kg</span></p>
                 </div>
               </div>
 
@@ -933,10 +974,10 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
                     <XAxis dataKey="date" stroke="#ffffff40" fontSize={10} tickLine={false} axisLine={false} />
                     <YAxis stroke="#ffffff40" fontSize={10} tickLine={false} axisLine={false} />
                     <RechartsTooltip 
-                      contentStyle={{ backgroundColor: 'rgba(10, 14, 23, 0.9)', borderColor: 'rgba(0, 242, 254, 0.3)', borderRadius: '8px', fontSize: '12px' }}
-                      itemStyle={{ color: '#00f2fe' }}
+                      contentStyle={{ backgroundColor: 'rgba(10, 14, 23, 0.9)', borderColor: 'var(--color-accent)', borderRadius: '8px', fontSize: '12px' }}
+                      itemStyle={{ color: 'var(--color-accent)' }}
                     />
-                    <Line type="monotone" dataKey="maxWeight" stroke="#00f2fe" strokeWidth={3} dot={{ fill: '#0a0e17', stroke: '#00f2fe', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: '#00f2fe' }} />
+                    <Line type="monotone" dataKey="maxWeight" stroke="var(--color-accent)" strokeWidth={3} dot={{ fill: '#0a0e17', stroke: 'var(--color-accent)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: 'var(--color-accent)' }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -951,11 +992,19 @@ function WorkoutsTab({ exercises, workoutSessions, onAddSession, onAddExercise }
   );
 }
 
-function SettingsTab({ onExport, onClear }: any) {
+function SettingsTab({ onExport, onClear, themeColor, onChangeTheme }: any) {
+  const colors = [
+    { id: 'cyan', color: '#00f2fe' },
+    { id: 'purple', color: '#a855f7' },
+    { id: 'emerald', color: '#10b981' },
+    { id: 'rose', color: '#f43f5e' },
+    { id: 'amber', color: '#f59e0b' }
+  ];
+
   return (
     <div className="space-y-6">
       <div className="text-center py-6 border-b border-white/10">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00f2fe] to-[#a855f7] mx-auto mb-4 flex items-center justify-center font-display font-bold text-3xl text-black shadow-neon-cyan">
+        <div className="w-16 h-16 rounded-2xl bg-accent mx-auto mb-4 flex items-center justify-center font-display font-bold text-3xl text-black shadow-neon-cyan">
           P
         </div>
         <h2 className="text-xl font-display font-bold text-white tracking-widest">PERSONAL OS</h2>
@@ -963,11 +1012,28 @@ function SettingsTab({ onExport, onClear }: any) {
       </div>
 
       <div className="space-y-3">
+        <h3 className="text-[10px] font-mono text-gray-500 tracking-widest uppercase mb-2 px-1">Aparência</h3>
+        <div className="bg-white/5 border border-white/10 p-4 rounded-xl">
+          <p className="text-sm font-bold text-white mb-3">Cor do Sistema</p>
+          <div className="flex gap-3">
+            {colors.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => onChangeTheme(c.id)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform ${themeColor === c.id ? 'scale-110 ring-2 ring-white/50 ring-offset-2 ring-offset-[#0a0e17]' : 'hover:scale-110'}`}
+                style={{ backgroundColor: c.color }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
         <h3 className="text-[10px] font-mono text-gray-500 tracking-widest uppercase mb-2 px-1">Dados & Exportação</h3>
         
         <button onClick={onExport} className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#00f2fe]/10 rounded-lg text-[#00f2fe]"><Download className="w-5 h-5" /></div>
+            <div className="p-2 bg-accent/10 rounded-lg text-accent"><Download className="w-5 h-5" /></div>
             <div className="text-left">
               <p className="text-sm font-bold text-white">Exportar Dados</p>
               <p className="text-[10px] font-mono text-gray-400">Backup completo em JSON</p>
@@ -998,8 +1064,8 @@ function SettingsTab({ onExport, onClear }: any) {
 
 function NavButton({ icon, label, isActive, onClick }: any) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center w-14 gap-1 transition-all ${isActive ? 'text-[#00f2fe] -translate-y-1' : 'text-gray-500 hover:text-gray-300'}`}>
-      <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'bg-[#00f2fe]/10 shadow-[0_0_10px_rgba(0,242,254,0.3)]' : ''}`}>
+    <button onClick={onClick} className={`flex flex-col items-center justify-center w-14 gap-1 transition-all ${isActive ? 'text-accent -translate-y-1' : 'text-gray-500 hover:text-gray-300'}`}>
+      <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'bg-accent/10 shadow-neon-cyan' : ''}`}>
         {icon}
       </div>
       <span className="text-[9px] font-mono font-medium tracking-wide truncate w-full text-center">{label}</span>
