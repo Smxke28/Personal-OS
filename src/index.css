@@ -24,6 +24,26 @@
   --color-accent: #f59e0b;
 }
 
+:root[data-theme="blue"] {
+  --color-accent: #3b82f6;
+}
+
+:root[data-theme="indigo"] {
+  --color-accent: #6366f1;
+}
+
+:root[data-theme="pink"] {
+  --color-accent: #ec4899;
+}
+
+:root[data-theme="teal"] {
+  --color-accent: #14b8a6;
+}
+
+:root[data-theme="orange"] {
+  --color-accent: #f97316;
+}
+
 @theme {
   --color-accent: var(--color-accent);
   
