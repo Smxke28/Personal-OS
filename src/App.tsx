@@ -18,7 +18,12 @@ import {
   LogOut,
   Sparkles,
   Dumbbell,
-  Palette
+  Palette,
+  Briefcase,
+  Code,
+  BookOpen,
+  TrendingUp,
+  PlusCircle
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Transaction, CalendarBlock, CategoryData, Exercise, WorkoutSession, WorkoutSet, RecurringItem } from './types';
@@ -44,10 +49,15 @@ const defaultBlocks = [
 ];
 
 const baseCategories = [
-  { name: 'food', label: 'Alimentação', color: 'var(--color-accent)', iconName: 'Utensils' },
-  { name: 'transport', label: 'Transporte', color: '#38bdf8', iconName: 'Car' },
-  { name: 'tech', label: 'Tecnologia', color: 'var(--color-accent)', iconName: 'Cpu' },
-  { name: 'health', label: 'Saúde', color: '#10b981', iconName: 'HeartPulse' }
+  { name: 'food', label: 'Alimentação', color: 'var(--color-accent)', iconName: 'Utensils', type: 'expense' },
+  { name: 'transport', label: 'Transporte', color: '#38bdf8', iconName: 'Car', type: 'expense' },
+  { name: 'tech', label: 'Tecnologia', color: 'var(--color-accent)', iconName: 'Cpu', type: 'expense' },
+  { name: 'health', label: 'Saúde', color: '#10b981', iconName: 'HeartPulse', type: 'expense' },
+  { name: 'salary', label: 'Salário', color: '#10b981', iconName: 'Briefcase', type: 'income' },
+  { name: 'freelance', label: 'Freelance', color: '#8b5cf6', iconName: 'Code', type: 'income' },
+  { name: 'internship', label: 'Estágio', color: '#3b82f6', iconName: 'BookOpen', type: 'income' },
+  { name: 'investments', label: 'Investimentos', color: '#f59e0b', iconName: 'TrendingUp', type: 'income' },
+  { name: 'others_income', label: 'Outros', color: '#9ca3af', iconName: 'PlusCircle', type: 'income' }
 ];
 
 export default function App() {
@@ -73,7 +83,20 @@ export default function App() {
     const savedRecurring = localStorage.getItem('pos-recurringItems');
     if (savedRecurring) {
       try {
-        setRecurringItems(JSON.parse(savedRecurring));
+        let parsed = JSON.parse(savedRecurring);
+        // Migration: fix old items that don't have a type, and fix categories
+        parsed = parsed.map((item: any) => {
+          let type = item.type;
+          if (!type) {
+            type = 'expense'; // default old items to expense
+          }
+          let category = item.category;
+          if (type === 'income' && !['salary', 'freelance', 'internship', 'investments', 'others_income'].includes(category)) {
+            category = 'salary';
+          }
+          return { ...item, type, category };
+        });
+        setRecurringItems(parsed);
       } catch (e) {}
     }
     const savedTx = localStorage.getItem('pos-transactions');
@@ -220,13 +243,13 @@ export default function App() {
     }
   };
 
-  const handleAddCategory = (name: string, limit?: number) => {
+  const handleAddCategory = (name: string, limit?: number, type: 'income' | 'expense' = 'expense') => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
     if (allCategories.some(c => c.name === slug)) return; // Prevent dupes
     // Generate distinct color using HSL
     const hue = Math.floor(Math.random() * 360);
     const color = `hsl(${hue}, 80%, 60%)`;
-    const newCat = { name: slug, label: name, color, iconName: 'Activity', limit };
+    const newCat = { name: slug, label: name, color, iconName: 'Activity', limit, type };
     setCustomCategories(prev => [...prev, newCat]);
   };
 
@@ -307,6 +330,11 @@ export default function App() {
       case 'Car': return <Car {...props} />;
       case 'Cpu': return <Cpu {...props} />;
       case 'HeartPulse': return <HeartPulse {...props} />;
+      case 'Briefcase': return <Briefcase {...props} />;
+      case 'Code': return <Code {...props} />;
+      case 'BookOpen': return <BookOpen {...props} />;
+      case 'TrendingUp': return <TrendingUp {...props} />;
+      case 'PlusCircle': return <PlusCircle {...props} />;
       default: return <Activity {...props} />;
     }
   };
@@ -472,10 +500,10 @@ function HomeTab({ totalExpenses, totalIncome, balance, focusHours, streak, tran
 function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDelete, onAddCategory, periodFilter, setPeriodFilter, recurringItems, setRecurringItems }: any) {
   const [financesTab, setFinancesTab] = useState<'transactions' | 'fixed'>('transactions');
   const [recType, setRecType] = useState<'income' | 'expense'>('income');
+  const [recCategory, setRecCategory] = useState('salary'); // Default to salary for income
   const [recDesc, setRecDesc] = useState('');
   const [recAmount, setRecAmount] = useState('');
-  const [recCategory, setRecCategory] = useState('food');
-  const [recDay, setRecDay] = useState('');
+    const [recDay, setRecDay] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('food');
   const [desc, setDesc] = useState('');
@@ -483,6 +511,8 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
 
   // New Category States
   const [showNewCat, setShowNewCat] = useState(false);
+  const [showNewRecCat, setShowNewRecCat] = useState(false);
+  const [newRecCatName, setNewRecCatName] = useState('');
   const [newCatName, setNewCatName] = useState('');
   const [newCatLimit, setNewCatLimit] = useState('');
 
@@ -508,6 +538,15 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleCreateRecCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRecCatName.trim()) return;
+    onAddCategory(newRecCatName.trim(), undefined, recType);
+    setRecCategory(newRecCatName.trim().toLowerCase().replace(/[^a-z0-9]/g, '-'));
+    setShowNewRecCat(false);
+    setNewRecCatName('');
+  };
+
   const handleCreateCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -517,6 +556,14 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
     setNewCatName('');
     setNewCatLimit('');
   };
+
+  React.useEffect(() => {
+    if (recType === 'income') {
+      setRecCategory('salary');
+    } else {
+      setRecCategory('food');
+    }
+  }, [recType]);
 
   const handleAddRecurring = (e: React.FormEvent) => {
     e.preventDefault();
@@ -692,12 +739,35 @@ function FinancesTab({ transactions, computedCategories, renderIcon, onAdd, onDe
                 <input type="number" step="0.01" placeholder="Valor ($)" value={recAmount} onChange={(e: any) => setRecAmount(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent transition-colors" required />
               </div>
               <div className="flex gap-3">
-                <select value={recCategory} onChange={(e: any) => setRecCategory(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-accent appearance-none">
-                  {computedCategories.map((c: any) => (
-                    <option key={c.name} value={c.name} className="bg-[#0a0e17]">{c.label}</option>
-                  ))}
-                </select>
-                <input type="number" placeholder="Dia (Opcional)" value={recDay} onChange={(e: any) => setRecDay(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent" min="1" max="31" />
+                <div className="flex-[2] flex flex-col gap-2">
+                  <select 
+                    value={showNewRecCat ? 'new' : recCategory} 
+                    onChange={(e: any) => {
+                      if (e.target.value === 'new') {
+                        setShowNewRecCat(true);
+                        setRecCategory('');
+                      } else {
+                        setShowNewRecCat(false);
+                        setRecCategory(e.target.value);
+                      }
+                    }} 
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-accent appearance-none"
+                  >
+                    {computedCategories.filter((c: any) => (recType === 'income' ? c.type === 'income' : c.type !== 'income')).map((c: any) => (
+                      <option key={c.name} value={c.name} className="bg-[#0a0e17]">{c.label}</option>
+                    ))}
+                    <option value="new" className="bg-[#0a0e17] text-accent">+ Nova Categoria</option>
+                  </select>
+                  
+                  {showNewRecCat && (
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Nome" value={newRecCatName} onChange={(e) => setNewRecCatName(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-accent" />
+                      <button type="button" onClick={handleCreateRecCategory} className="bg-accent/20 text-accent px-3 rounded-lg text-xs font-bold hover:bg-accent/30">CRIAR</button>
+                      <button type="button" onClick={() => { setShowNewRecCat(false); setRecCategory(recType === 'income' ? 'salary' : 'food'); }} className="text-gray-500 hover:text-white px-2">X</button>
+                    </div>
+                  )}
+                </div>
+                <input type="number" placeholder="Dia (Opc)" value={recDay} onChange={(e: any) => setRecDay(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent" min="1" max="31" />
               </div>
               <input type="text" placeholder="Descrição (ex: Salário)" value={recDesc} onChange={(e: any) => setRecDesc(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent" required />
               <button type="submit" className="w-full bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 font-bold py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2">
